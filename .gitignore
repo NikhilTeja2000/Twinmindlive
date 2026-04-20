@@ -1,0 +1,38 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+.next
+out
+build
+*.tsbuildinfo
+
+# Env — ignore all .env* except the committed template
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+
+# Tests / coverage
+coverage
+
+# Logs
+*.log
+logs/
+.pnpm-debug.log
+npm-debug.log
+yarn-error.log
+
+# IDEs
+.idea/
+.vscode/
+
+# Cursor — keep committed rules, ignore any per-user state
+.cursor/*
+
+# Deploy / build caches
+.vercel
+.turbo
