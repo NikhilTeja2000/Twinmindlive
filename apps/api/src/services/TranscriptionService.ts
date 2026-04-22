@@ -23,6 +23,7 @@ export class TranscriptionService {
     sessionId: string,
     sequence: number,
     chunk: IncomingAudioChunk,
+    apiKey: string,
     /** Optional rolling vocab/context to bias recognizer (last few transcript chunks). */
     biasPrompt?: string,
   ): Promise<TranscriptChunk> {
@@ -32,7 +33,7 @@ export class TranscriptionService {
       ? Math.max(0, endedMs - startedMs)
       : 0;
 
-    const { text, durationSec } = await this.transcribeOrThrow(chunk, biasPrompt);
+    const { text, durationSec } = await this.transcribeOrThrow(chunk, apiKey, biasPrompt);
 
     return {
       id: nanoid(10),
@@ -48,10 +49,12 @@ export class TranscriptionService {
 
   private async transcribeOrThrow(
     chunk: IncomingAudioChunk,
+    apiKey: string,
     biasPrompt?: string,
   ): Promise<{ text: string; durationSec?: number }> {
     try {
       return await this.groq.transcribe({
+        apiKey,
         model: this.settings.get().llm.transcriptionModel,
         audio: chunk.buffer,
         filename: chunk.filename,

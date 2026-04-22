@@ -26,7 +26,11 @@ export class ChunkPipelineService {
     private readonly timeline: SessionTimelineLogger,
   ) {}
 
-  async ingestChunk(sessionId: string, incoming: IncomingAudioChunk): Promise<UploadChunkResponse> {
+  async ingestChunk(
+    sessionId: string,
+    incoming: IncomingAudioChunk,
+    apiKey: string,
+  ): Promise<UploadChunkResponse> {
     const session = this.sessions.require(sessionId);
     const settings = this.settings.get();
     const sequence = this.sessions.nextTranscriptSequence(sessionId);
@@ -36,6 +40,7 @@ export class ChunkPipelineService {
       sessionId,
       sequence,
       incoming,
+      apiKey,
       bias,
     );
     this.sessions.appendTranscript(sessionId, transcriptChunk);
@@ -53,6 +58,7 @@ export class ChunkPipelineService {
 
     const suggestionBatch = await this.suggestions.generate({
       sessionId,
+      apiKey,
       transcriptContext,
       basedOnTranscriptThroughSeq: transcriptChunk.sequence,
       reason: 'auto',
@@ -67,7 +73,7 @@ export class ChunkPipelineService {
     return { transcriptChunk, suggestionBatch };
   }
 
-  async regenerateSuggestions(sessionId: string): Promise<RefreshResponse> {
+  async regenerateSuggestions(sessionId: string, apiKey: string): Promise<RefreshResponse> {
     const session = this.sessions.require(sessionId);
     const settings = this.settings.get();
 
@@ -83,6 +89,7 @@ export class ChunkPipelineService {
 
     const suggestionBatch = await this.suggestions.generate({
       sessionId,
+      apiKey,
       transcriptContext,
       basedOnTranscriptThroughSeq: lastSeq,
       reason: 'manual',

@@ -23,7 +23,12 @@ export class GroqClient {
     this.client = new Groq({ apiKey: this.cachedKey });
   }
 
-  private sdk(): Groq {
+  private sdk(apiKeyOverride?: string): Groq {
+    const override = apiKeyOverride?.trim();
+    if (override) {
+      // Per-request key path: never mutate shared cached client.
+      return new Groq({ apiKey: override });
+    }
     const current = this.keys.get();
     if (current !== this.cachedKey) {
       this.cachedKey = current;
@@ -34,6 +39,7 @@ export class GroqClient {
 
   async transcribe(params: {
     model: string;
+    apiKey?: string;
     audio: Buffer;
     filename: string;
     contentType: string;
@@ -43,7 +49,7 @@ export class GroqClient {
     prompt?: string;
   }): Promise<{ text: string; durationSec?: number }> {
     const file = await toFile(params.audio, params.filename, { type: params.contentType });
-    const result = await this.sdk().audio.transcriptions.create({
+    const result = await this.sdk(params.apiKey).audio.transcriptions.create({
       model: params.model,
       file,
       response_format: 'verbose_json',
@@ -58,6 +64,7 @@ export class GroqClient {
 
   async chat(params: {
     model: string;
+    apiKey?: string;
     messages: ChatCompletionMessageParam[];
     temperature: number;
     maxCompletionTokens: number;
@@ -106,7 +113,7 @@ export class GroqClient {
       ...(responseFormat ? { response_format: responseFormat } : {}),
     };
 
-    const sdk = this.sdk();
+    const sdk = this.sdk(params.apiKey);
     const completion = (await sdk.chat.completions.create(
       body as unknown as Parameters<typeof sdk.chat.completions.create>[0],
     )) as ChatCompletion;
@@ -117,8 +124,8 @@ export class GroqClient {
    * Lists every model the current key can see. Used by the settings UI to
    * verify that a pasted key has access to the three required model IDs.
    */
-  async listModels(): Promise<string[]> {
-    const res = await this.sdk().models.list();
+  async listModels(apiKey?: string): Promise<string[]> {
+    const res = await this.sdk(apiKey).models.list();
     return res.data.map((m) => m.id);
   }
 }

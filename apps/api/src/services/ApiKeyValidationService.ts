@@ -15,9 +15,10 @@ export class ApiKeyValidationService {
     private readonly settings: SettingsStore,
   ) {}
 
-  async check(): Promise<ApiKeyCheckResult> {
+  async check(apiKey?: string): Promise<ApiKeyCheckResult> {
     const checkedAt = new Date().toISOString();
-    const hasApiKey = this.apiKeys.has();
+    const candidate = apiKey?.trim() ?? '';
+    const hasApiKey = candidate.length > 0;
     const required = this.requiredModels();
 
     if (!hasApiKey) {
@@ -31,7 +32,7 @@ export class ApiKeyValidationService {
     }
 
     try {
-      const available = new Set(await this.groq.listModels());
+      const available = new Set(await this.groq.listModels(candidate));
       const resolved = required.map<ModelAccess>((r) => ({
         ...r,
         available: available.has(r.id),

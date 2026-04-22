@@ -21,7 +21,12 @@ export class ExpandedAnswerService {
     private readonly timeline: SessionTimelineLogger,
   ) {}
 
-  async expand(sessionId: string, batchId: string, suggestionId: string): Promise<ExpandResponse> {
+  async expand(
+    sessionId: string,
+    batchId: string,
+    suggestionId: string,
+    apiKey: string,
+  ): Promise<ExpandResponse> {
     const session = this.sessions.require(sessionId);
     const settings = this.settings.get();
 
@@ -51,6 +56,7 @@ export class ExpandedAnswerService {
       `Provide a deeper, more actionable answer for this suggestion.`;
 
     const reply = await this.groq.chat({
+      apiKey,
       model: settings.llm.chatModel,
       temperature: settings.llm.temperature,
       maxCompletionTokens: settings.llm.maxTokens,

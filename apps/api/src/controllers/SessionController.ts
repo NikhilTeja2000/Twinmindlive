@@ -5,6 +5,8 @@ import type { SettingsStore } from '../services/SettingsStore.js';
 import type { AudioChunkService } from '../services/AudioChunkService.js';
 import type { ChunkPipelineService } from '../services/ChunkPipelineService.js';
 import type { SessionTimelineLogger } from '../services/SessionTimelineLogger.js';
+import { HttpError } from '../errors/HttpError.js';
+import { requestApiKey } from './requestApiKey.js';
 
 interface Deps {
   sessions: SessionStore;
@@ -36,13 +38,17 @@ export function registerSessionController(app: FastifyInstance, deps: Deps): voi
   });
 
   app.post<{ Params: { id: string } }>('/session/:id/chunks', async (req, reply) => {
+    const apiKey = requestApiKey(req);
+    if (!apiKey) throw new HttpError(400, 'No API key configured. Add it in Settings first.');
     const incoming = await deps.audio.parse(await req.file());
-    const result = await deps.pipeline.ingestChunk(req.params.id, incoming);
+    const result = await deps.pipeline.ingestChunk(req.params.id, incoming, apiKey);
     return reply.send(result);
   });
 
   app.post<{ Params: { id: string } }>('/session/:id/refresh', async (req, reply) => {
-    const result = await deps.pipeline.regenerateSuggestions(req.params.id);
+    const apiKey = requestApiKey(req);
+    if (!apiKey) throw new HttpError(400, 'No API key configured. Add it in Settings first.');
+    const result = await deps.pipeline.regenerateSuggestions(req.params.id, apiKey);
     return reply.send(result);
   });
 }

@@ -4,6 +4,7 @@ import type { SettingsStore } from '../services/SettingsStore.js';
 import type { ApiKeyStore } from '../services/ApiKeyStore.js';
 import type { ApiKeyValidationService } from '../services/ApiKeyValidationService.js';
 import { HttpError } from '../errors/HttpError.js';
+import { requestApiKey } from './requestApiKey.js';
 
 interface Deps {
   settings: SettingsStore;
@@ -12,8 +13,8 @@ interface Deps {
 }
 
 export function registerSettingsController(app: FastifyInstance, deps: Deps): void {
-  app.get('/settings', async (_req, reply) => {
-    return reply.send(buildResponse(deps));
+  app.get('/settings', async (req, reply) => {
+    return reply.send(buildResponse(deps, requestApiKey(req)));
   });
 
   app.put('/settings', async (req, reply) => {
@@ -21,29 +22,32 @@ export function registerSettingsController(app: FastifyInstance, deps: Deps): vo
     if (!parsed.success) throw new HttpError(400, parsed.error.message);
 
     const { apiKey, ...rest } = parsed.data;
-    if (apiKey !== undefined) {
-      try {
-        deps.apiKeys.set(apiKey);
-      } catch (err) {
-        throw new HttpError(400, (err as Error).message);
-      }
-    }
+    const requestKey = apiKey?.trim() || requestApiKey(req);
     deps.settings.update(rest);
 
-    return reply.send(buildResponse(deps));
+    return reply.send(buildResponse(deps, requestKey));
   });
 
-  app.get('/settings/api-key/check', async (_req, reply) => {
-    const result = await deps.apiKeyValidation.check();
+  app.get('/settings/api-key/check', async (req, reply) => {
+    const result = await deps.apiKeyValidation.check(requestApiKey(req) ?? undefined);
     return reply.send(result);
   });
 }
 
-function buildResponse(deps: Deps): SettingsResponse {
-  const hasApiKey = deps.apiKeys.has();
+function buildResponse(deps: Deps, requestKey: string | null): SettingsResponse {
+  const key = requestKey?.trim() ?? '';
+  const hasApiKey = key.length > 0;
   return {
     ...deps.settings.get(),
     hasApiKey,
-    ...(hasApiKey ? { apiKeyPreview: deps.apiKeys.preview() } : {}),
+    ...(hasApiKey ? { apiKeyPreview: maskPreview(key) } : {}),
   };
+}
+
+function maskPreview(key: string): string {
+  if (key.length <= 8) return '•'.repeat(Math.max(key.length, 4));
+  const prefixMatch = key.match(/^([A-Za-z]{2,4}_)/);
+  const prefix = prefixMatch?.[1] ?? '';
+  const last4 = key.slice(-4);
+  return `${prefix}${'•'.repeat(12)}${last4}`;
 }

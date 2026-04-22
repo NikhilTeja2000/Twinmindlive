@@ -95,7 +95,7 @@ export function SettingsDrawer({ open, onClose }: Props) {
           <div>
             <h2 className="text-base font-semibold text-ink-900">Settings</h2>
             <p className="text-xs text-ink-500 mt-0.5">
-              Runtime configuration. Held in server memory for this session only.
+              Runtime configuration. API key is kept in this browser session only.
             </p>
           </div>
           <button

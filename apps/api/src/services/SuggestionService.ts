@@ -36,6 +36,7 @@ export class SuggestionService {
 
   async generate(args: {
     sessionId: string;
+    apiKey: string;
     transcriptContext: string;
     basedOnTranscriptThroughSeq: number | null;
     reason: 'auto' | 'manual';
@@ -52,6 +53,7 @@ export class SuggestionService {
       { role: 'user', content: userPrompt },
     ];
     const baseCall: GroqChatParams = {
+      apiKey: args.apiKey,
       model: settings.llm.suggestionModel,
       temperature: settings.llm.temperature,
       maxCompletionTokens: settings.llm.maxTokens,

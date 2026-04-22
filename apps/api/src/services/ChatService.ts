@@ -22,7 +22,11 @@ export class ChatService {
     private readonly timeline: SessionTimelineLogger,
   ) {}
 
-  async answerTyped(sessionId: string, userMessageContent: string): Promise<ChatResponse> {
+  async answerTyped(
+    sessionId: string,
+    userMessageContent: string,
+    apiKey: string,
+  ): Promise<ChatResponse> {
     const session = this.sessions.require(sessionId);
     const settings = this.settings.get();
 
@@ -42,6 +46,7 @@ export class ChatService {
     );
 
     const reply = await this.groq.chat({
+      apiKey,
       model: settings.llm.chatModel,
       temperature: settings.llm.temperature,
       maxCompletionTokens: settings.llm.maxTokens,

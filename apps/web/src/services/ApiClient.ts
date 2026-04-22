@@ -15,7 +15,37 @@ import type {
  * No state, no UI; throws on non-2xx with a parsed error message.
  */
 export class ApiClient {
+  private static readonly API_KEY_HEADER = 'x-groq-api-key';
+  private static readonly API_KEY_STORAGE = 'twinmind.apiKey';
+  private runtimeApiKey: string | null = null;
+  private loadedFromStorage = false;
+
   constructor(private readonly baseUrl: string) {}
+
+  setApiKey(apiKey: string | null): void {
+    const trimmed = apiKey?.trim() ?? '';
+    this.runtimeApiKey = trimmed.length > 0 ? trimmed : null;
+    if (typeof window === 'undefined') return;
+    this.loadedFromStorage = true;
+    if (this.runtimeApiKey) {
+      window.sessionStorage.setItem(ApiClient.API_KEY_STORAGE, this.runtimeApiKey);
+    } else {
+      window.sessionStorage.removeItem(ApiClient.API_KEY_STORAGE);
+    }
+  }
+
+  private getApiKey(): string | null {
+    if (this.runtimeApiKey) return this.runtimeApiKey;
+    if (this.loadedFromStorage) return null;
+    if (typeof window === 'undefined') {
+      this.loadedFromStorage = true;
+      return null;
+    }
+    this.loadedFromStorage = true;
+    const stored = window.sessionStorage.getItem(ApiClient.API_KEY_STORAGE)?.trim() ?? '';
+    this.runtimeApiKey = stored.length > 0 ? stored : null;
+    return this.runtimeApiKey;
+  }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
     // Only tag the request as JSON when a JSON body is actually present.
@@ -25,9 +55,11 @@ export class ApiClient {
     const body = init?.body;
     const sendsJsonBody = body !== undefined && body !== null && !(body instanceof FormData);
 
+    const apiKey = this.getApiKey();
     const res = await fetch(`${this.baseUrl}${path}`, {
       ...init,
       headers: {
+        ...(apiKey ? { [ApiClient.API_KEY_HEADER]: apiKey } : {}),
         ...(sendsJsonBody ? { 'Content-Type': 'application/json' } : {}),
         ...(init?.headers ?? {}),
       },
@@ -99,9 +131,14 @@ export class ApiClient {
   }
 
   updateSettings(patch: SettingsUpdate): Promise<SettingsResponse> {
+    const key = patch.apiKey?.trim();
     return this.request<SettingsResponse>('/settings', {
       method: 'PUT',
       body: JSON.stringify(patch),
+      headers: key ? { [ApiClient.API_KEY_HEADER]: key } : undefined,
+    }).then((res) => {
+      if (key) this.setApiKey(key);
+      return res;
     });
   }
 
