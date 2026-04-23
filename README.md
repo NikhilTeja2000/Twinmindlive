@@ -315,9 +315,9 @@ npm run typecheck
 | POST   | `/session/:id/expand`             | Clicked suggestion → detailed assistant answer |
 | GET    | `/session/:id`                    | Snapshot of current session |
 | GET    | `/session/:id/export?format=json` | Download export (`json` or `txt`) |
-| GET    | `/settings`                       | Current settings + `hasApiKey` |
+| GET    | `/settings`                       | Current settings + request-scoped `hasApiKey` |
 | PUT    | `/settings`                       | Update any subset of prompts / context / models / API key |
-| GET    | `/settings/api-key/check`         | Cross-ref required model IDs against `groq.models.list()` |
+| GET    | `/settings/api-key/check`         | Cross-ref required model IDs against `groq.models.list()` using the current browser session key |
 | GET    | `/health`                         | Liveness |
 
 ---
@@ -329,23 +329,34 @@ The app is two independent services plus a shared package, deployable either tog
 ### Recommended shape
 
 - **Frontend** on any static-plus-edge host that supports Next.js (Vercel, Netlify, Cloudflare Pages). Needs `NEXT_PUBLIC_API_BASE_URL` pointed at the deployed API.
-- **Backend** on any Node 20+ host (Fly.io, Railway, Render, a Docker-capable VPS). Needs `GROQ_API_KEY` optional, `CORS_ORIGINS` set to the frontend's public URL.
+- **Backend** on any Node 20+ host (Fly.io, Railway, Render, a Docker-capable VPS). Needs `GROQ_API_KEY` optional fallback seed, `CORS_ORIGINS` set to the frontend's public URL.
 
 ### Important: single-process constraint
 
-Because all state lives in one Node process (`SessionStore`, `ApiKeyStore`, `SettingsStore`), the backend **must run as a single instance**, not horizontally scaled behind a load balancer. Scaling out would require swapping `SessionStore` for a shared backend (Redis). This is a deliberate simplification for the scope of this assignment — see §10.
+Because session/chat/transcript state lives in one Node process (`SessionStore`, `SettingsStore`), the backend **must run as a single instance**, not horizontally scaled behind a load balancer. Scaling out would require swapping `SessionStore` for a shared backend (Redis). This is a deliberate simplification for the scope of this assignment — see §10.
 
 ### Env vars recap
 
 **API:**
-- `GROQ_API_KEY` (optional at boot)
+- `GROQ_API_KEY` (optional fallback seed; per-browser key entry in Settings is supported)
 - `GROQ_TRANSCRIPTION_MODEL=whisper-large-v3`
 - `GROQ_LLM_MODEL=openai/gpt-oss-120b`
 - `API_PORT=4000`, `API_HOST=0.0.0.0`
 - `CORS_ORIGINS=https://your-web.example.com`
+  - Exact origin match is required (no trailing slash). Example:
+    - good: `https://twinmindlive-api.vercel.app`
+    - bad: `https://twinmindlive-api.vercel.app/`
 
 **Web:**
 - `NEXT_PUBLIC_API_BASE_URL=https://your-api.example.com`
+
+### Railway quick checklist
+
+- Generate a public Railway domain for the API service.
+- Set service start command to `npm run start:api`.
+- Set healthcheck path to `/health`.
+- Set `CORS_ORIGINS` to the exact Vercel origin (no trailing slash).
+- Point web env `NEXT_PUBLIC_API_BASE_URL` to the Railway API URL.
 
 ---
 
