@@ -63,7 +63,7 @@ manual refresh    ─────────► POST /session/:id/refresh ─�
 
 **Backend** (`apps/api/src/`)
 - `clients/GroqClient` — *only* talks to Groq. Chat completions, transcriptions, and `models.list()` for key validation.
-- `services/ApiKeyStore` — holds the Groq key in process memory (never serialised back).
+- `controllers/requestApiKey` — extracts request-scoped API key from `x-groq-api-key`.
 - `services/ApiKeyValidationService` — cross-refs the 3 required model IDs against `groq.models.list()`.
 - `services/SessionStore` — in-memory store for all active sessions.
 - `services/SettingsStore` — in-memory runtime settings (prompts, context, model tuning).
@@ -210,7 +210,7 @@ Live suggestions are the critical latency path — they run inline on every chun
 
 ### Server-side
 
-- `GroqClient` **reuses one `Groq` SDK instance** and only rebuilds it when `ApiKeyStore` returns a different key. Keep-alive stays intact on the hot path.
+- `GroqClient` uses the request key for per-user calls; no global runtime key overwrite between users.
 - Transcription + suggestion generation run **sequentially in one request** (the chunk POST). Theoretically they could be parallelized (generate suggestions from the *previous* transcript while the current one transcribes), but that complicates the "one atomic response" invariant. Out of scope for this submission.
 - The Fastify error handler terminates fast; `HttpError` is the only typed error type that crosses the HTTP boundary.
 
@@ -228,16 +228,16 @@ Everything stateful lives in the API process:
 
 | Store | Lifetime | Contents |
 |---|---|---|
-| `ApiKeyStore` | Process | The Groq API key (string). `has()` / `get()` / `set()` |
 | `SettingsStore` | Process | `AppSettings` (prompts, context, models, reasoning effort) |
 | `SessionStore` | Process | Map of sessionId → `{ meta, transcript, suggestionBatches, chat }` |
 
-Server restart wipes all three. That's intentional: the assignment explicitly says **no persistence across reloads**, export is expected to be the only long-lived artifact. Absent a persistence layer, the code avoids the complexity of schemas, migrations, and recovery paths — at the cost of "close the tab = session gone."
+Server restart wipes both stores. That's intentional: the assignment explicitly says **no persistence across reloads**, export is expected to be the only long-lived artifact. Absent a persistence layer, the code avoids the complexity of schemas, migrations, and recovery paths — at the cost of "close the tab = session gone."
 
 ### Security properties
 
-- The Groq key is **never serialised back over HTTP.** `GET /settings` returns `SettingsResponse = AppSettings & { hasApiKey: boolean }`. The UI never sees the raw key.
-- The browser **never calls Groq directly.** All LLM calls are proxied through the Fastify API, which reads from `ApiKeyStore` on every call.
+- The Groq key is **never serialised back over HTTP.** `GET /settings` returns `SettingsResponse = AppSettings & { hasApiKey: boolean }` plus optional masked `apiKeyPreview`; the raw key is never returned.
+- The browser **never calls Groq directly.** All LLM calls are proxied through the Fastify API, which reads the per-request `x-groq-api-key` header.
+- The frontend stores the key in browser `sessionStorage` only for the current browser session and attaches it to API calls.
 - CORS is explicit: `CORS_ORIGINS` env var controls which origins the API accepts (`http://localhost:3000` by default).
 
 ### If this had to persist
